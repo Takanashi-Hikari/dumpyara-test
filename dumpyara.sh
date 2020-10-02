@@ -26,11 +26,11 @@ else
     [[ -e "$URL" ]] || { echo "Invalid Input" && exit 1; }
 fi
 
-ORG=AndroidDumps #your GitHub org name
+ORG=ZyCromerZ #your GitHub org name
 FILE=$(echo ${URL##*/} | inline-detox)
 EXTENSION=$(echo ${URL##*.} | inline-detox)
 UNZIP_DIR=${FILE/.$EXTENSION/}
-PARTITIONS="system vendor cust odm oem factory product modem xrom systemex system_ext"
+PARTITIONS="system vendor cust odm oem factory product modem xrom systemex"
 
 if [[ -d "$1" ]]; then
     echo 'Directory detected. Copying...'
@@ -163,17 +163,13 @@ cat "$PROJECT_DIR"/working/"${UNZIP_DIR}"/README.md
 if [[ -n $GIT_OAUTH_TOKEN ]]; then
     curl --silent --fail "https://raw.githubusercontent.com/$ORG/$repo/$branch/all_files.txt" 2> /dev/null && echo "Firmware already dumped!" && exit 1
     git init
-    if [[ -z "$(git config --get user.email)" ]]; then
-        git config user.email AndroidDumps@github.com
-    fi
-    if [[ -z "$(git config --get user.name)" ]]; then
-        git config user.name AndroidDumps
-    fi
+    git config user.name VISakura
+    git config user.email weloveyuri@gmail.com
     git checkout -b "$branch"
     find . -size +97M -printf '%P\n' -o -name "*sensetime*" -printf '%P\n' -o -name "*.lic" -printf '%P\n' >| .gitignore
     git add --all
 
-    curl -s -X POST -H "Authorization: token ${GIT_OAUTH_TOKEN}" -d '{ "name": "'"$repo"'" }' "https://api.github.com/orgs/${ORG}/repos" #create new repo
+    curl -s -H "Authorization: token ${GIT_OAUTH_TOKEN}" https://api.github.com/user/repos -d '{"name":"'"$repo"'"}' #create new repo
     curl -s -X PUT -H "Authorization: token ${GIT_OAUTH_TOKEN}" -H "Accept: application/vnd.github.mercy-preview+json" -d '{ "names": ["'"$manufacturer"'","'"$platform"'","'"$top_codename"'"]}' "https://api.github.com/repos/${ORG}/${repo}/topics"
     git remote add origin https://github.com/$ORG/"${repo,,}".git
     git commit -asm "Add ${description}"
@@ -200,9 +196,13 @@ else
 fi
 
 # Telegram channel
-TG_TOKEN=$(< "$PROJECT_DIR"/.tgtoken)
+if [[ -n $3 ]]; then
+    TG_TOKEN="$3"
+else
+    TG_TOKEN=$(< "$PROJECT_DIR"/.tgtoken)
+fi
 if [[ -n "$TG_TOKEN" ]]; then
-    CHAT_ID="@android_dumps"
+    CHAT_ID="-1001358453362"
     commit_head=$(git log --format=format:%H | head -n 1)
     commit_link="https://github.com/$ORG/$repo/commit/$commit_head"
     echo -e "Sending telegram notification"
