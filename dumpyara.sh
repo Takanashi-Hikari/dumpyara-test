@@ -202,7 +202,7 @@ else
     TG_TOKEN=$(< "$PROJECT_DIR"/.tgtoken)
 fi
 if [[ -n "$TG_TOKEN" ]]; then
-    CHAT_ID="-1001358453362"
+    CHAT_ID="-1001161055876"
     commit_head=$(git log --format=format:%H | head -n 1)
     commit_link="https://github.com/$ORG/$repo/commit/$commit_head"
     echo -e "Sending telegram notification"
