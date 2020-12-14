@@ -2,7 +2,7 @@
 clone: 
   depth: 1
 kind: pipeline
-name: VISakura
+name: Takanashi-Hikari
 steps: 
   - 
     commands: 
@@ -13,7 +13,7 @@ steps:
       GIT_SECRET: 
         from_secret: GIT_API_KEY
     image: fadlyas/kernel_dockerfile:latest
-    name: Hazukashio
+    name: Hikari
     trigger: 
       branch: 
         - unified-tes
