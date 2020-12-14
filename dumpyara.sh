@@ -26,7 +26,7 @@ else
     [[ -e "$URL" ]] || { echo "Invalid Input" && exit 1; }
 fi
 
-ORG=VISakura #your GitHub org name
+ORG=Takanashi-Hikari #your GitHub org name
 FILE=$(echo ${URL##*/} | inline-detox)
 EXTENSION=$(echo ${URL##*.} | inline-detox)
 UNZIP_DIR=${FILE/.$EXTENSION/}
@@ -163,8 +163,8 @@ cat "$PROJECT_DIR"/working/"${UNZIP_DIR}"/README.md
 if [[ -n $GIT_OAUTH_TOKEN ]]; then
     curl --silent --fail "https://raw.githubusercontent.com/$ORG/$repo/$branch/all_files.txt" 2> /dev/null && echo "Firmware already dumped!" && exit 1
     git init
-    git config user.name VISakura
-    git config user.email weloveyuri@gmail.com
+    git config user.name Takanashi-Hikari
+    git config user.email firsname76@gmail.com
     git checkout -b "$branch"
     find . -size +97M -printf '%P\n' -o -name "*sensetime*" -printf '%P\n' -o -name "*.lic" -printf '%P\n' >| .gitignore
     git add --all
@@ -202,7 +202,7 @@ else
     TG_TOKEN=$(< "$PROJECT_DIR"/.tgtoken)
 fi
 if [[ -n "$TG_TOKEN" ]]; then
-    CHAT_ID="-1001161055876"
+    CHAT_ID="-1001171905830"
     commit_head=$(git log --format=format:%H | head -n 1)
     commit_link="https://github.com/$ORG/$repo/commit/$commit_head"
     echo -e "Sending telegram notification"
