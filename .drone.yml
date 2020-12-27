@@ -2,7 +2,7 @@
 clone: 
   depth: 1
 kind: pipeline
-name: Takanashi-Hikari
+name: Calliope-K
 steps: 
   - 
     commands: 
@@ -13,7 +13,7 @@ steps:
       GIT_SECRET: 
         from_secret: GIT_API_KEY
     image: fadlyas/kernel_dockerfile:latest
-    name: Hikari
+    name: Latte
     trigger: 
       branch: 
         - unified-tes
