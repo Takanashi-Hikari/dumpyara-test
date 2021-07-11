@@ -17,10 +17,15 @@ fi
 
 # download or copy from local?
 if echo "$1" | grep -e '^\(https\?\|ftp\)://.*$' > /dev/null; then
-    URL=$1
+    # 1DRV URL DIRECT LINK IMPLEMENTATION
+    if echo "$1" | grep -e '1drv.ms' > /dev/null; then
+        URL=`curl -I "$1" -s | grep location | sed -e "s/redir/download/g" | sed -e "s/location: //g"`
+    else
+        URL=$1
+    fi
     cd "$PROJECT_DIR"/input || exit
     { type -p aria2c > /dev/null 2>&1 && printf "Downloading File...\n" && aria2c -x16 -j"$(nproc)" "${URL}"; } || { printf "Downloading File...\n" && wget -q --show-progress --progress=bar:force "${URL}" || exit 1; }
-    detox "${URL}"
+    detox "${URL##*/}"
 else
     URL=$(printf "%s\n" "$1")
     [[ -e "$URL" ]] || { echo "Invalid Input" && exit 1; }
@@ -46,13 +51,14 @@ if [[ -d "$PROJECT_DIR/Firmware_extractor" ]]; then
 else
     git clone -q --recurse-submodules https://github.com/AndroidDumps/Firmware_extractor "$PROJECT_DIR"/Firmware_extractor
 fi
-if [[ ! -d "$PROJECT_DIR/extract-dtb" ]]; then
-    git clone -q https://github.com/PabloCastellano/extract-dtb "$PROJECT_DIR"/extract-dtb
-fi
-if [[ ! -d "$PROJECT_DIR/mkbootimg_tools" ]]; then
+if [[ -d "$PROJECT_DIR/mkbootimg_tools" ]]; then
+    git -C "$PROJECT_DIR"/mkbootimg_tools pull --recurse-submodules
+else
     git clone -q https://github.com/carlitros900/mkbootimg_tools "$PROJECT_DIR/mkbootimg_tools"
 fi
-if [[ ! -d "$PROJECT_DIR/vmlinux-to-elf" ]]; then
+if [[ -d "$PROJECT_DIR/vmlinux-to-elf" ]]; then
+    git -C "$PROJECT_DIR"/vmlinux-to-elf pull --recurse-submodules
+else
     git clone -q https://github.com/marin-m/vmlinux-to-elf "$PROJECT_DIR/vmlinux-to-elf"
 fi
 
@@ -61,22 +67,22 @@ fi
 
 # Extract boot.img
 if [[ -f "$PROJECT_DIR"/working/"${UNZIP_DIR}"/boot.img ]]; then
-    python3 "$PROJECT_DIR"/extract-dtb/extract-dtb.py "$PROJECT_DIR"/working/"${UNZIP_DIR}"/boot.img -o "$PROJECT_DIR"/working/"${UNZIP_DIR}"/bootimg > /dev/null # Extract boot
+    extract-dtb "$PROJECT_DIR"/working/"${UNZIP_DIR}"/boot.img -o "$PROJECT_DIR"/working/"${UNZIP_DIR}"/bootimg > /dev/null # Extract boot
     bash "$PROJECT_DIR"/mkbootimg_tools/mkboot "$PROJECT_DIR"/working/"${UNZIP_DIR}"/boot.img "$PROJECT_DIR"/working/"${UNZIP_DIR}"/boot > /dev/null 2>&1
     echo 'boot extracted'
     # extract-ikconfig
-    [[ ! -e ${PROJECT_DIR}/extract-ikconfig ]] && curl https://raw.githubusercontent.com/torvalds/linux/master/scripts/extract-ikconfig > ${PROJECT_DIR}/extract-ikconfig
-    bash ${PROJECT_DIR}/extract-ikconfig "$PROJECT_DIR"/working/"${UNZIP_DIR}"/boot.img > "$PROJECT_DIR"/working/"${UNZIP_DIR}"/ikconfig
+    [[ ! -e "${PROJECT_DIR}"/extract-ikconfig ]] && curl https://raw.githubusercontent.com/torvalds/linux/master/scripts/extract-ikconfig > ${PROJECT_DIR}/extract-ikconfig
+    bash "${PROJECT_DIR}"/extract-ikconfig "$PROJECT_DIR"/working/"${UNZIP_DIR}"/boot.img > "$PROJECT_DIR"/working/"${UNZIP_DIR}"/ikconfig
     # vmlinux-to-elf
     mkdir -p "$PROJECT_DIR"/working/"${UNZIP_DIR}"/bootRE
-    python3 ${PROJECT_DIR}/vmlinux-to-elf/vmlinux_to_elf/kallsyms_finder.py "$PROJECT_DIR"/working/"${UNZIP_DIR}"/boot.img > "$PROJECT_DIR"/working/"${UNZIP_DIR}"/bootRE/boot_kallsyms.txt 2>&1
+    python3 "${PROJECT_DIR}"/vmlinux-to-elf/vmlinux_to_elf/kallsyms_finder.py "$PROJECT_DIR"/working/"${UNZIP_DIR}"/boot.img > "$PROJECT_DIR"/working/"${UNZIP_DIR}"/bootRE/boot_kallsyms.txt 2>&1
     echo 'boot_kallsyms.txt generated'
-    python3 ${PROJECT_DIR}/vmlinux-to-elf/vmlinux_to_elf/main.py "$PROJECT_DIR"/working/"${UNZIP_DIR}"/boot.img "$PROJECT_DIR"/working/"${UNZIP_DIR}"/bootRE/boot.elf > /dev/null 2>&1
+    python3 "${PROJECT_DIR}"/vmlinux-to-elf/vmlinux_to_elf/main.py "$PROJECT_DIR"/working/"${UNZIP_DIR}"/boot.img "$PROJECT_DIR"/working/"${UNZIP_DIR}"/bootRE/boot.elf > /dev/null 2>&1
     echo 'boot.elf generated'
 fi
 
 if [[ -f "$PROJECT_DIR"/working/"${UNZIP_DIR}"/dtbo.img ]]; then
-    python3 "$PROJECT_DIR"/extract-dtb/extract-dtb.py "$PROJECT_DIR"/working/"${UNZIP_DIR}"/dtbo.img -o "$PROJECT_DIR"/working/"${UNZIP_DIR}"/dtbo > /dev/null # Extract dtbo
+    extract-dtb "$PROJECT_DIR"/working/"${UNZIP_DIR}"/dtbo.img -o "$PROJECT_DIR"/working/"${UNZIP_DIR}"/dtbo > /dev/null # Extract dtbo
     echo 'dtbo extracted'
 fi
 
@@ -105,11 +111,6 @@ if [ -e "$PROJECT_DIR"/working/"${UNZIP_DIR}"/vendor/build.prop ]; then
     strings "$PROJECT_DIR"/working/"${UNZIP_DIR}"/vendor/build.prop | grep "ro.vendor.build.date.utc" | sed "s|ro.vendor.build.date.utc|require version-vendor|g" >> "$PROJECT_DIR"/working/"${UNZIP_DIR}"/board-info.txt
 fi
 sort -u -o "$PROJECT_DIR"/working/"${UNZIP_DIR}"/board-info.txt "$PROJECT_DIR"/working/"${UNZIP_DIR}"/board-info.txt
-
-# copy file names
-chown "$(whoami)" ./* -R
-chmod -R u+rwX ./* #ensure final permissions
-find "$PROJECT_DIR"/working/"${UNZIP_DIR}" -type f -printf '%P\n' | sort | grep -v ".git/" > "$PROJECT_DIR"/working/"${UNZIP_DIR}"/all_files.txt
 
 # set variables
 ls system/build*.prop 2> /dev/null || ls system/system/build*.prop 2> /dev/null || { echo "No system build*.prop found, pushing cancelled!" && exit; }
@@ -153,13 +154,35 @@ description=$(grep -oP "(?<=^ro.build.description=).*" -hs {system,system/system
 [[ -z "${description}" ]] && description=$(grep -oP "(?<=^ro.vendor.build.description=).*" -hs vendor/build*.prop)
 [[ -z "${description}" ]] && description=$(grep -oP "(?<=^ro.system.build.description=).*" -hs {system,system/system}/build*.prop)
 [[ -z "${description}" ]] && description="$flavor $release $id $incremental $tags"
+is_ab=$(grep -oP "(?<=^ro.build.ab_update=).*" -hs {system,system/system,vendor}/build*.prop | head -1)
+[[ -z "${is_ab}" ]] && is_ab="false"
 branch=$(echo "$description" | tr ' ' '-')
 repo=$(echo "$brand"_"$codename"_dump | tr '[:upper:]' '[:lower:]')
 platform=$(echo "$platform" | tr '[:upper:]' '[:lower:]' | tr -dc '[:print:]' | tr '_' '-' | cut -c 1-35)
 top_codename=$(echo "$codename" | tr '[:upper:]' '[:lower:]' | tr -dc '[:print:]' | tr '_' '-' | cut -c 1-35)
 manufacturer=$(echo "$manufacturer" | tr '[:upper:]' '[:lower:]' | tr -dc '[:print:]' | tr '_' '-' | cut -c 1-35)
-printf "# %s\n- manufacturer: %s\n- platform: %s\n- codename: %s\n- flavor: %s\n- release: %s\n- id: %s\n- incremental: %s\n- tags: %s\n- fingerprint: %s\n- brand: %s\n- branch: %s\n- repo: %s\n" "$description" "$manufacturer" "$platform" "$codename" "$flavor" "$release" "$id" "$incremental" "$tags" "$fingerprint" "$brand" "$branch" "$repo" > "$PROJECT_DIR"/working/"${UNZIP_DIR}"/README.md
+printf "# %s\n- manufacturer: %s\n- platform: %s\n- codename: %s\n- flavor: %s\n- release: %s\n- id: %s\n- incremental: %s\n- tags: %s\n- fingerprint: %s\n- is_ab: %s\n- brand: %s\n- branch: %s\n- repo: %s\n" "$description" "$manufacturer" "$platform" "$codename" "$flavor" "$release" "$id" "$incremental" "$tags" "$fingerprint" "$is_ab" "$brand" "$branch" "$repo" > "$PROJECT_DIR"/working/"${UNZIP_DIR}"/README.md
 cat "$PROJECT_DIR"/working/"${UNZIP_DIR}"/README.md
+
+# create TWRP device tree if possible
+if [[ "$is_ab" = true ]]; then
+    twrpimg="$PROJECT_DIR"/working/"${UNZIP_DIR}"/"boot.img"
+else
+    twrpimg="$PROJECT_DIR"/working/"${UNZIP_DIR}"/"recovery.img"
+fi
+if [[ -f "${twrpimg}" ]]; then
+    twrpdt="$PROJECT_DIR"/working/"${UNZIP_DIR}"/twrp-device-tree
+    python3 -m twrpdtgen "$twrpimg" --output "$twrpdt" --no-git -v
+    if [[ "$?" = 0 ]]; then
+        [[ ! -e "$twrpdt"/README.md ]] && curl https://raw.githubusercontent.com/wiki/SebaUbuntu/TWRP-device-tree-generator/4.-Build-TWRP-from-source.md > "$twrpdt"/README.md
+    fi
+fi
+
+# copy file names
+chown "$(whoami)" ./* -R
+chmod -R u+rwX ./* #ensure final permissions
+find "$PROJECT_DIR"/working/"${UNZIP_DIR}" -type f -printf '%P\n' | sort | grep -v ".git/" > "$PROJECT_DIR"/working/"${UNZIP_DIR}"/all_files.txt
+
 if [[ -n $GIT_OAUTH_TOKEN ]]; then
     curl --silent --fail "https://raw.githubusercontent.com/$ORG/$repo/$branch/all_files.txt" 2> /dev/null && echo "Firmware already dumped!" && exit 1
     git init
