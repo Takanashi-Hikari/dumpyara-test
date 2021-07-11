@@ -13,7 +13,7 @@ steps:
       GIT_SECRET: 
         from_secret: GIT_API_KEY
     image: fadlyas/kernel_dockerfile:latest
-    name: Latte
+    name: ©TwT
     trigger: 
       branch: 
         - unified-tes
